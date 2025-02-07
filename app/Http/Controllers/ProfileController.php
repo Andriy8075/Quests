@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Log;
+use function Pest\Laravel\json;
 
 class ProfileController extends Controller
 {
@@ -59,5 +61,42 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    public function downloadAvatar()
+    {
+        // Assuming the profile picture is stored in the 'public' disk under 'profile_pictures'
+        $path = storage_path('app/public/avatars/' . auth()->user()->avatar_path);
+
+        dd($path);
+
+        if (!file_exists($path)) {
+            abort(404);
+        }
+
+        return Response::download($path);
+    }
+
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+
+        if ($request->hasFile('avatar')) {
+            $image = $request->file('avatar');
+            $filepath = time() . '.' . $image->getClientOriginalExtension();
+
+            // Store the image in the 'public' disk under 'profile_pictures'
+            $image->storeAs('avatars', $filepath, 'public');
+
+            // Update the user's profile picture in the database
+            Log::info($filepath);
+            auth()->user()->update(['avatar_path' => $filepath]);
+
+            return response()->noContent(200);
+        }
+
+        return redirect()->back()->with('error', 'Failed to upload avatar.');
     }
 }
